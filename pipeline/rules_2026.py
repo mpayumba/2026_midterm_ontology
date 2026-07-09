@@ -58,6 +58,9 @@ class StateRules:
     general_runoff_threshold: Optional[float] = None
     citation: str = "TODO"
     note: Optional[str] = None
+    # Stages tabulated by ranked choice within a single event (ME) — no
+    # separate runoff election exists or can exist.
+    rcv: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +128,8 @@ RULES_2026: dict[str, StateRules] = {
     "ME": StateRules("semi_closed", date(2026, 6, 9),
                      citation="21-A M.R.S. § 339; RCV 21-A M.R.S. § 723-A",
                      note=("Maine tabulates primaries and congressional "
-                           "generals by ranked choice (21-A M.R.S. § 723-A)")),
+                           "generals by ranked choice (21-A M.R.S. § 723-A)"),
+                     rcv=True),
     "MD": StateRules("closed", date(2026, 6, 23),
                      citation="Md. Code, Elec. Law § 8-201 (as amended by 2025 Md. Laws ch. 311)"),
     "MA": StateRules("semi_closed", date(2026, 9, 1),
@@ -287,8 +291,12 @@ def build_stages(state: str, contest_id: str,
 
     # Party-scoped primaries (closed / open / semi_closed).
     has_primary_runoff = rules.primary_runoff_threshold is not None
-    primary_rule = (AggregationRule.majority_runoff if has_primary_runoff
-                    else AggregationRule.plurality)
+    if rules.rcv:
+        primary_rule = AggregationRule.ranked_choice
+    elif has_primary_runoff:
+        primary_rule = AggregationRule.majority_runoff
+    else:
+        primary_rule = AggregationRule.plurality
     for party in ("DEM", "REP"):
         primary_id = f"{contest_id}/stage:primary:{party.lower()}"
         runoff_id = f"{contest_id}/stage:primary-runoff:{party.lower()}"
@@ -317,15 +325,22 @@ def build_stages(state: str, contest_id: str,
             ))
 
     has_general_runoff = rules.general_runoff_threshold is not None
+    if rules.rcv:
+        general_rule = AggregationRule.ranked_choice
+    elif has_general_runoff:
+        general_rule = AggregationRule.majority_runoff
+    else:
+        general_rule = AggregationRule.plurality
     stages.append(ContestStage(
         stage_id=general_id,
         function=StageFunction.deciding,
-        rule=(AggregationRule.majority_runoff if has_general_runoff
-              else AggregationRule.plurality),
+        rule=general_rule,
         election_date=GENERAL_2026,
         runoff_threshold=rules.general_runoff_threshold,
         advances_to=general_runoff_id if has_general_runoff else None,
         statutory_basis=GENERAL_ELECTION_GROUNDING,
+        note=("Tabulated by ranked choice (21-A M.R.S. § 723-A)"
+              if rules.rcv else None),
     ))
     if has_general_runoff:
         stages.append(ContestStage(

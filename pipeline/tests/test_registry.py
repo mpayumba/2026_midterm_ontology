@@ -9,6 +9,20 @@ from pipeline.registry import (
 
 AT_LARGE_STATES = {"AK", "DE", "ND", "SD", "VT", "WY"}
 
+# Independent oracle for acceptance check 2 — transcribed here from the
+# U.S. Census Bureau 2020 Census Apportionment Results (April 26, 2021),
+# NOT imported from pipeline.registry, so a typo in the generator's table
+# cannot vacuously satisfy this test.
+EXPECTED_APPORTIONMENT = {
+    "AL": 7, "AK": 1, "AZ": 9, "AR": 4, "CA": 52, "CO": 8, "CT": 5, "DE": 1,
+    "FL": 28, "GA": 14, "HI": 2, "ID": 2, "IL": 17, "IN": 9, "IA": 4,
+    "KS": 4, "KY": 6, "LA": 6, "ME": 2, "MD": 8, "MA": 9, "MI": 13,
+    "MN": 8, "MS": 4, "MO": 8, "MT": 2, "NE": 3, "NV": 4, "NH": 2,
+    "NJ": 12, "NM": 3, "NY": 26, "NC": 14, "ND": 1, "OH": 15, "OK": 5,
+    "OR": 6, "PA": 17, "RI": 2, "SC": 7, "SD": 1, "TN": 9, "TX": 38,
+    "UT": 4, "VT": 1, "VA": 11, "WA": 10, "WV": 2, "WI": 8, "WY": 1,
+}
+
 
 class TestSenateContests:
     def test_33_regular_contests_all_class_2(self, registry):
@@ -46,11 +60,14 @@ class TestSenateContests:
 
 class TestHouseContests:
     def test_435_contests_matching_apportionment(self, registry):
+        assert sum(EXPECTED_APPORTIONMENT.values()) == 435
         assert len(registry.house_contests) == 435
         per_state: dict[str, int] = {}
         for c in registry.house_contests:
             per_state[c.seat.state] = per_state.get(c.seat.state, 0) + 1
-        assert per_state == APPORTIONMENT_2020
+        # against the independent oracle, not the generator's own table
+        assert per_state == EXPECTED_APPORTIONMENT
+        assert APPORTIONMENT_2020 == EXPECTED_APPORTIONMENT
 
     def test_at_large_states_have_single_district_zero(self, registry):
         for state in AT_LARGE_STATES:
@@ -105,6 +122,14 @@ class TestStageGraphs:
         nominating = [s for s in la_senate[0].stages
                       if s.function == StageFunction.nominating]
         assert {s.party_scope for s in nominating} == {"DEM", "REP"}
+
+    def test_maine_stages_are_ranked_choice(self, registry):
+        # 21-A M.R.S. § 723-A: primaries and congressional generals are
+        # tabulated by ranked choice — a single event, never a runoff.
+        for c in registry.contests:
+            if c.seat.state == "ME":
+                for s in c.stages:
+                    assert s.rule.value == "ranked_choice", s.stage_id
 
     def test_texas_has_conditional_runoff_stages(self, registry):
         tx = [c for c in registry.house_contests if c.seat.state == "TX"][0]

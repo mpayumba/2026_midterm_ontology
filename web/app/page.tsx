@@ -84,7 +84,10 @@ export default function Home() {
     const contests = result.contestIds
       .map((id) => contestById.get(id))
       .filter((c): c is ContestT => c !== undefined);
-    return { point: picked, contests };
+    const geometryMayBeSuperseded = result.houseFeatures.some(
+      (f) => f.properties.geometry_may_be_superseded
+    );
+    return { point: picked, contests, geometryMayBeSuperseded };
   }, [data, picked, contestById]);
 
   if (error) {
@@ -155,6 +158,7 @@ export default function Home() {
           plans={data.plans}
           point={selection.point}
           caveat={data.houseFC.caveat}
+          geometryMayBeSuperseded={selection.geometryMayBeSuperseded}
           onClose={() => setPicked(null)}
         />
       )}

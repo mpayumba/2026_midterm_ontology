@@ -20,6 +20,7 @@ const RULE_LABEL: Record<string, string> = {
   majority_runoff: "majority (runoff below threshold)",
   top_two: "top-two",
   top_four_rcv: "top-four / ranked choice",
+  ranked_choice: "ranked choice",
 };
 
 const INCUMBENCY_LABEL: Record<string, string> = {
@@ -41,9 +42,29 @@ function fmtDate(iso: string | null | undefined): string {
   });
 }
 
-function stageSortKey(s: ContestStageT): string {
-  const fnOrder = { nominating: 0, resolving: 1, deciding: 2 }[s.function];
-  return `${s.election_date ?? "9999-99-99"}|${fnOrder}|${s.stage_id}`;
+/**
+ * Order stages by the DAG itself: depth = longest advances_to path from a
+ * root. This keeps nominating -> resolving -> deciding order even for
+ * undated stages, and still places GA/LA post-general runoffs after the
+ * deciding stage (they are its advances_to children).
+ */
+function orderStages(stages: ContestStageT[]): ContestStageT[] {
+  const depth = new Map<string, number>(stages.map((s) => [s.stage_id, 0]));
+  for (let i = 0; i < stages.length; i++) {
+    for (const s of stages) {
+      if (s.advances_to != null && depth.has(s.advances_to)) {
+        const d = (depth.get(s.stage_id) ?? 0) + 1;
+        if (d > (depth.get(s.advances_to) ?? 0)) depth.set(s.advances_to, d);
+      }
+    }
+  }
+  return [...stages].sort((a, b) => {
+    const byDepth = (depth.get(a.stage_id) ?? 0) - (depth.get(b.stage_id) ?? 0);
+    if (byDepth !== 0) return byDepth;
+    const byParty = (a.party_scope ?? "").localeCompare(b.party_scope ?? "");
+    if (byParty !== 0) return byParty;
+    return a.stage_id.localeCompare(b.stage_id);
+  });
 }
 
 function StageRow({ stage }: { stage: ContestStageT }) {
@@ -112,9 +133,7 @@ export function ContestCard({
   plan: DistrictPlanT | undefined;
 }) {
   const kind = contestKind(contest);
-  const stages = [...contest.stages].sort((a, b) =>
-    stageSortKey(a).localeCompare(stageSortKey(b))
-  );
+  const stages = orderStages(contest.stages);
   const years = termYears(contest.target_term_id);
   const citations = collectCitations(contest, plan);
 
@@ -138,7 +157,7 @@ export function ContestCard({
             {contest.vacancy && (
               <div className="vacancy-note">
                 Vacated {fmtDate(contest.vacancy.vacancy_date)} (
-                {contest.vacancy.reason.toLowerCase().replace(/^resigned/, "resigned")});{" "}
+                {contest.vacancy.reason.replace(/^Resigned/, "resigned")});{" "}
                 {contest.vacancy.appointed_by
                   ? `placeholder appointed by ${contest.vacancy.appointed_by}`
                   : "no appointment recorded"}
@@ -216,17 +235,17 @@ export default function ContestPanel({
   plans,
   point,
   caveat,
+  geometryMayBeSuperseded = false,
   onClose,
 }: {
   contests: ContestT[];
   plans: Map<string, DistrictPlanT>;
   point: { lng: number; lat: number };
   caveat?: string;
+  /** From the queried features' geometry_may_be_superseded flag. */
+  geometryMayBeSuperseded?: boolean;
   onClose: () => void;
 }) {
-  const anySuperseded = contests.some(
-    (c) => c.under_plan_id && plans.get(c.under_plan_id)?.effective_from_cycle === 2026
-  );
   return (
     <aside className="panel">
       <div className="panel-header">
@@ -252,7 +271,7 @@ export default function ContestPanel({
           />
         ))
       )}
-      {anySuperseded && caveat && (
+      {geometryMayBeSuperseded && caveat && (
         <div className="vacancy-note" style={{ marginTop: 8 }}>
           ⚠ {caveat}
         </div>

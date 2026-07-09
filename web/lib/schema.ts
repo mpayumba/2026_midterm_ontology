@@ -19,6 +19,7 @@ export const AggregationRuleEnum = z.enum([
   "majority_runoff",
   "top_two",
   "top_four_rcv",
+  "ranked_choice",
 ]);
 export const IncumbencyStatusEnum = z.enum([
   "running",
@@ -38,7 +39,14 @@ export const ContestStatusEnum = z.enum([
 ]);
 export const PlanAuthorEnum = z.enum(["legislature", "commission", "court"]);
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "ISO date");
+// Calendar-aware (rejects e.g. 2026-13-45), matching Pydantic's date type.
+const isoDate = z.string().date();
+const isoDateTime = z
+  .string()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
+    "ISO datetime"
+  );
 
 // ---------------------------------------------------------------------------
 // Structural layer
@@ -140,9 +148,10 @@ export const ContestStage = z
 
 export const Annotation = z.object({
   source: z.string(),
-  as_of: z.string(),
+  as_of: isoDateTime,
   kind: z.string(),
-  value: z.unknown(),
+  // z.unknown() alone would let the key be absent; Pydantic requires it.
+  value: z.unknown().refine((v) => v !== undefined, "value is required"),
 });
 
 // ---------------------------------------------------------------------------
@@ -176,6 +185,11 @@ export const Contest = z
       if (c.trigger !== "vacancy") issue("completing requires trigger=vacancy");
       if (c.vacancy == null) issue("completing requires an attached VacancyEvent");
     }
+    if (c.vacancy != null && c.vacancy.seat_id !== c.seat.seat_id) {
+      issue(
+        `attached VacancyEvent is for seat ${c.vacancy.seat_id}, not this contest's seat ${c.seat.seat_id}`
+      );
+    }
     if (c.seat.chamber === "senate" && c.under_plan_id != null) {
       issue("Senate contests must not reference a DistrictPlan");
     }
@@ -187,6 +201,37 @@ export const Contest = z
       if (deciders.length !== 1) {
         issue(`stage graph must have exactly one deciding stage, found ${deciders.length}`);
       }
+      const stageIds = new Set(c.stages.map((s) => s.stage_id));
+      for (const s of c.stages) {
+        if (s.advances_to != null && !stageIds.has(s.advances_to)) {
+          issue(`stage ${s.stage_id} advances_to unknown stage ${s.advances_to}`);
+        }
+      }
+    }
+    // Serialized derived fields must agree with what the functions derive —
+    // they are projections of the base facts, never trusted stored data.
+    if (c.is_special !== (c.trigger === "vacancy")) {
+      issue("is_special contradicts trigger (derived field out of sync)");
+    }
+    const decider = c.stages.find((s) => s.function === "deciding");
+    if ((c.general_date ?? null) !== (decider?.election_date ?? null)) {
+      issue("general_date does not match the deciding stage's election_date");
+    }
+    const st = c.seat.state.toLowerCase();
+    const expectedSeatId =
+      c.seat.chamber === "senate"
+        ? `ocd-seat/us-senate/${st}/class:${c.seat.senate_class}`
+        : `ocd-seat/us-house/${st}/district:${c.seat.district_number}`;
+    const stateDiv = `ocd-division/country:us/state:${st}`;
+    const expectedDivision =
+      c.seat.chamber === "senate" || c.seat.district_number === 0
+        ? stateDiv
+        : `${stateDiv}/cd:${c.seat.district_number}`;
+    if (c.seat.seat_id !== expectedSeatId) {
+      issue(`seat_id ${c.seat.seat_id} does not match its (state, ${c.seat.chamber === "senate" ? "class" : "district"})`);
+    }
+    if (c.seat.division_id !== expectedDivision) {
+      issue(`division_id ${c.seat.division_id} does not match the seat's constituency`);
     }
   });
 
@@ -263,7 +308,9 @@ export function isOpenSeat(contest: ContestT): boolean {
 }
 
 export function contestKind(contest: ContestT): "special" | "open" | "regular" {
-  if (contest.is_special) return "special";
+  // Derive from the base fact (trigger), never from the serialized
+  // is_special projection — mirroring Contest.is_special in models.py.
+  if (contest.trigger === "vacancy") return "special";
   if (isOpenSeat(contest)) return "open";
   return "regular";
 }

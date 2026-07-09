@@ -85,6 +85,25 @@ class TestValidators:
                 _stage("s/general2", StageFunction.deciding),
             ])
 
+    def test_vacancy_must_match_contest_seat(self):
+        fl_vacancy = build_vacancies()[0]  # FL Class 3
+        with pytest.raises(ValidationError, match="not this contest's seat"):
+            _contest(
+                seat=SenateSeat(state="OH", senate_class=3),
+                under_plan_id=None,
+                trigger=Trigger.vacancy,
+                term_relation=TermRelation.completing,
+                vacancy=fl_vacancy,
+            )
+
+    def test_advances_to_must_reference_sibling_stage(self):
+        with pytest.raises(ValidationError, match="advances_to unknown stage"):
+            _contest(stages=[
+                _stage("s/primary", StageFunction.nominating,
+                       advances_to="s/nonexistent"),
+                _stage("s/general", StageFunction.deciding),
+            ])
+
     def test_nominating_stage_needs_party_scope_or_top_n(self):
         with pytest.raises(ValidationError, match="party_scope or a top-N"):
             ContestStage(stage_id="s/primary",

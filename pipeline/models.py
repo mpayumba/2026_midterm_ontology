@@ -68,6 +68,9 @@ class AggregationRule(str, Enum):
     majority_runoff = "majority_runoff"
     top_two = "top_two"
     top_four_rcv = "top_four_rcv"
+    # Majority via instant-runoff within a single administered event (Maine,
+    # 21-A M.R.S. § 723-A) — no separate runoff election is ever scheduled.
+    ranked_choice = "ranked_choice"
 
 
 class IncumbencyStatus(str, Enum):
@@ -317,6 +320,13 @@ class Contest(BaseModel):
                     f"{self.contest_id}: term_relation=completing requires "
                     "an attached VacancyEvent"
                 )
+        # The attached vacancy must explain THIS contest's seat.
+        if self.vacancy is not None and self.vacancy.seat_id != self.seat.seat_id:
+            raise ValueError(
+                f"{self.contest_id}: attached VacancyEvent is for seat "
+                f"{self.vacancy.seat_id!r}, not this contest's seat "
+                f"{self.seat.seat_id!r}"
+            )
         # A Senate contest's constituency is the state division directly —
         # it has no plan machinery. A House seat's boundary is a function
         # of the governing plan, so the plan reference is mandatory.
@@ -330,7 +340,9 @@ class Contest(BaseModel):
                 f"{self.contest_id}: House contests must reference the "
                 "governing DistrictPlan via under_plan_id"
             )
-        # The stage DAG has exactly one terminal deciding stage.
+        # The stage DAG has exactly one terminal deciding stage (contests
+        # with no stages yet — pre-scheduling stubs — are permitted), and
+        # advances_to edges must reference sibling stages.
         if self.stages:
             deciders = [s for s in self.stages if s.function == StageFunction.deciding]
             if len(deciders) != 1:
@@ -338,6 +350,13 @@ class Contest(BaseModel):
                     f"{self.contest_id}: stage graph must contain exactly "
                     f"one deciding stage, found {len(deciders)}"
                 )
+            stage_ids = {s.stage_id for s in self.stages}
+            for s in self.stages:
+                if s.advances_to is not None and s.advances_to not in stage_ids:
+                    raise ValueError(
+                        f"{self.contest_id}: stage {s.stage_id!r} advances_to "
+                        f"unknown stage {s.advances_to!r}"
+                    )
         return self
 
     @computed_field  # type: ignore[prop-decorator]
