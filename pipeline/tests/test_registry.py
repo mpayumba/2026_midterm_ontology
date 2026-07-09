@@ -92,11 +92,19 @@ class TestStageGraphs:
                 assert nominating[0].party_scope is None
                 assert nominating[0].rule.value == "top_two"
 
-    def test_louisiana_has_no_nominating_stage(self, registry):
-        for c in registry.contests:
+    def test_louisiana_split_system(self, registry):
+        # 2026 House races: November all-comers majority election, no
+        # separate nominating stage; Senate races: closed party primaries
+        # (2024 La. Act 1).
+        for c in registry.house_contests:
             if c.seat.state == "LA":
                 assert not [s for s in c.stages
                             if s.function == StageFunction.nominating]
+        la_senate = [c for c in registry.senate_contests if c.seat.state == "LA"]
+        assert len(la_senate) == 1
+        nominating = [s for s in la_senate[0].stages
+                      if s.function == StageFunction.nominating]
+        assert {s.party_scope for s in nominating} == {"DEM", "REP"}
 
     def test_texas_has_conditional_runoff_stages(self, registry):
         tx = [c for c in registry.house_contests if c.seat.state == "TX"][0]

@@ -14,6 +14,7 @@ from datetime import date, datetime
 from .models import (
     Annotation,
     Candidacy,
+    Chamber,
     Contest,
     ContestStatus,
     DistrictPlan,
@@ -127,12 +128,14 @@ def _mid_decade_plans() -> dict[str, DistrictPlan]:
             enacted_by=PlanAuthor.legislature,
             effective_from_cycle=2026,
             authorized_by=LegalCitation(
-                instrument="Tex. 89th Leg., 2025 special session congressional plan (H.B. 4)",
+                instrument="Tex. H.B. 4, 89th Leg., 2d Called Sess. (2025) (Plan C2333)",
                 description=(
-                    "Mid-decade plan enacted August 2025; a three-judge "
-                    "federal panel blocked it in late 2025 but the U.S. "
-                    "Supreme Court stayed that ruling, leaving the plan in "
-                    "use for 2026 (UNVERIFIED details)"
+                    "Mid-decade plan signed 2025-08-29; a three-judge "
+                    "W.D. Tex. panel enjoined it 2025-11-18 (LULAC v. "
+                    "Abbott) but the Supreme Court stayed the injunction "
+                    "2025-12-04 and summarily reversed 2026-04-27, leaving "
+                    "the plan in use for 2026; related claims remain in "
+                    "litigation"
                 ),
             ),
             superseded_plan_id="tx-cd-2021",
@@ -145,12 +148,12 @@ def _mid_decade_plans() -> dict[str, DistrictPlan]:
             enacted_by=PlanAuthor.legislature,
             effective_from_cycle=2026,
             authorized_by=LegalCitation(
-                instrument="Cal. Proposition 50 (Nov. 2025)",
+                instrument="Cal. Proposition 50 (Election Rigging Response Act), approved 2025-11-04",
                 description=(
-                    "Legislatively referred ballot measure (Election "
-                    "Rigging Response Act) adopting a legislature-drawn "
-                    "map in place of the 2021 commission plan for "
-                    "2026–2030; approved by voters Nov. 2025"
+                    "Legislatively referred ballot measure adopting a "
+                    "legislature-drawn map in place of the 2021 commission "
+                    "plan for 2026–2030; approved by voters ~64–36; "
+                    "post-passage challenges pending"
                 ),
             ),
             superseded_plan_id="ca-cd-2021",
@@ -163,11 +166,11 @@ def _mid_decade_plans() -> dict[str, DistrictPlan]:
             enacted_by=PlanAuthor.legislature,
             effective_from_cycle=2026,
             authorized_by=LegalCitation(
-                instrument="Mo. 2025 special session congressional plan (H.B. 1)",
+                instrument="Mo. H.B. 1, 103d Gen. Assemb., 2d Extraordinary Sess. (2025)",
                 description=(
-                    "Mid-decade plan enacted September 2025; subject to "
-                    "referendum-petition and court challenges (UNVERIFIED "
-                    "details)"
+                    "'Missouri First Map' signed 2025-09-28; Missouri "
+                    "Supreme Court upheld it 2026-03-24; referendum-"
+                    "petition and further challenges pending"
                 ),
             ),
             superseded_plan_id="mo-cd-2021",
@@ -180,11 +183,13 @@ def _mid_decade_plans() -> dict[str, DistrictPlan]:
             enacted_by=PlanAuthor.legislature,
             effective_from_cycle=2026,
             authorized_by=LegalCitation(
-                instrument="N.C. Gen. Assemb., October 2025 congressional plan",
+                instrument="N.C. Sess. Law 2025-95 (S.B. 249) (Plan C2025E)",
                 description=(
-                    "Mid-decade plan; supersedes the prior post-2020-census "
-                    "lineage (2021/2023 maps collapsed into nc-cd-2021 in "
-                    "v0); challenged in federal court (UNVERIFIED details)"
+                    "Ratified 2025-10-22 (redistricting exempt from "
+                    "gubernatorial veto); preliminary injunction denied "
+                    "Nov. 2025, so in use for 2026 while federal "
+                    "challenges continue; prior 2021/2023 map lineage is "
+                    "collapsed into nc-cd-2021 in v0"
                 ),
             ),
             superseded_plan_id="nc-cd-2021",
@@ -194,15 +199,17 @@ def _mid_decade_plans() -> dict[str, DistrictPlan]:
         "OH": DistrictPlan(
             plan_id="oh-cd-2025",
             state="OH",
-            enacted_by=PlanAuthor.legislature,
+            enacted_by=PlanAuthor.commission,
             effective_from_cycle=2026,
             authorized_by=LegalCitation(
-                instrument="Ohio Const. art. XIX; 2025 congressional plan",
+                instrument="Ohio Const. art. XIX; Ohio Redistricting Comm'n plan (2025-10-31)",
                 description=(
-                    "Redraw required because the 2021 plan passed without "
-                    "bipartisan support and expired after four years; 2025 "
-                    "plan enacted with bipartisan support (UNVERIFIED "
-                    "details)"
+                    "Redraw required because the 2021-cycle plan passed "
+                    "without bipartisan support and expired after four "
+                    "years; the commission adopted the 2025 plan "
+                    "unanimously after the legislature missed its "
+                    "deadline; implemented by Sec'y of State Directive "
+                    "2025-55"
                 ),
             ),
             superseded_plan_id="oh-cd-2021",
@@ -215,11 +222,14 @@ def _mid_decade_plans() -> dict[str, DistrictPlan]:
             enacted_by=PlanAuthor.court,
             effective_from_cycle=2026,
             authorized_by=LegalCitation(
-                instrument="League of Women Voters v. Utah Legislature (Utah 3d Dist. Ct. 2025)",
+                instrument=(
+                    "League of Women Voters of Utah v. Utah State Legislature, "
+                    "Utah 3d Jud. Dist. Ct., remedial order of 2025-11-10"
+                ),
                 description=(
-                    "Court-ordered remedial map after the Utah Supreme "
-                    "Court's Proposition 4 ruling invalidated the 2021 "
-                    "plan; appeal exposure remains (UNVERIFIED details)"
+                    "Court-ordered remedial map (plaintiffs' Map 1) after "
+                    "the legislature's Map C was found to violate voter-"
+                    "approved Proposition 4; appeal exposure remains"
                 ),
             ),
             superseded_plan_id="ut-cd-2021",
@@ -281,10 +291,10 @@ def build_vacancies() -> list[VacancyEvent]:
             appointee_person_id="person/jon-husted",
             appointed_by="Gov. Mike DeWine (R-OH)",
             appointment_grounding=LegalCitation(
-                instrument=f"{SEVENTEENTH_AMENDMENT.instrument}; Ohio Rev. Code § 3.02 (UNVERIFIED)",
+                instrument=f"{SEVENTEENTH_AMENDMENT.instrument}; Ohio Rev. Code § 3521.02",
                 description=(
                     "17th Amendment temporary-appointment power as directed "
-                    "by Ohio's vacancy statute"
+                    "by Ohio's U.S. Senate vacancy statute"
                 ),
             ),
         ),
@@ -367,10 +377,10 @@ def build_senate_contests(vacancies: list[VacancyEvent]) -> list[Contest]:
                     target_term_id=f"term/us-senate/{state.lower()}/class:{senate_class}/2027-2033",
                     trigger=Trigger.calendar,
                     term_relation=TermRelation.initiating,
-                    stages=build_stages(state, contest_id),
+                    stages=build_stages(state, contest_id, Chamber.senate),
                     candidacies=_SEED_CANDIDACIES.get(contest_id, []),
                     administered_by=_administered_by(state),
-                    scheduling_grounding=scheduling_grounding(state),
+                    scheduling_grounding=scheduling_grounding(state, Chamber.senate),
                     annotations=_SEED_ANNOTATIONS.get(contest_id, []),
                 ))
             else:
@@ -385,10 +395,10 @@ def build_senate_contests(vacancies: list[VacancyEvent]) -> list[Contest]:
                     trigger=Trigger.vacancy,
                     term_relation=TermRelation.completing,
                     vacancy=vacancy,
-                    stages=build_stages(state, contest_id),
+                    stages=build_stages(state, contest_id, Chamber.senate),
                     candidacies=_SEED_CANDIDACIES.get(contest_id, []),
                     administered_by=_administered_by(state),
-                    scheduling_grounding=scheduling_grounding(state),
+                    scheduling_grounding=scheduling_grounding(state, Chamber.senate),
                     annotations=_SEED_ANNOTATIONS.get(contest_id, []),
                 ))
     return contests
@@ -409,10 +419,10 @@ def build_house_contests() -> list[Contest]:
                 trigger=Trigger.calendar,
                 term_relation=TermRelation.initiating,
                 under_plan_id=governing_plan_id(state),
-                stages=build_stages(state, contest_id),
+                stages=build_stages(state, contest_id, Chamber.house),
                 candidacies=_SEED_CANDIDACIES.get(contest_id, []),
                 administered_by=_administered_by(state),
-                scheduling_grounding=scheduling_grounding(state),
+                scheduling_grounding=scheduling_grounding(state, Chamber.house),
                 annotations=_SEED_ANNOTATIONS.get(contest_id, []),
             ))
     return contests
