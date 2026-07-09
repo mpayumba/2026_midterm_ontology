@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Node
+web/node_modules/
+web/.next/
+web/out/
+npm-debug.log*
+
+# Raw data downloads (TIGER shapefiles etc.) — regenerate with `python -m pipeline.geo`
+data/raw/
+
+# Large generated artifacts are committed only if <10 MB; anything bigger stays out
+*.zip
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Env
+.env
+.env.local
