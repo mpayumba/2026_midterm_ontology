@@ -9,7 +9,7 @@ OH, UT) TIGER may lag the 2025 plans, so those features are flagged
 from __future__ import annotations
 
 import json
-import math
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests
@@ -19,12 +19,10 @@ from .registry import MID_DECADE_STATES, Registry, governing_plan_id
 
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 
-# Latest available national TIGER/Line files, newest first.
-CD_URLS = [
-    "https://www2.census.gov/geo/tiger/TIGER2025/CD/tl_2025_us_cd119.zip",
-    "https://www2.census.gov/geo/tiger/TIGER2024/CD/tl_2024_us_cd119.zip",
-    "https://www2.census.gov/geo/tiger/TIGER2023/CD/tl_2023_us_cd118.zip",
-]
+# Latest available TIGER/Line vintage. Since TIGER2024 the CD product is
+# published per state (tl_{year}_{statefps}_cd119.zip), not as one national
+# file; the STATE product is still national.
+CD_URL_TEMPLATE = "https://www2.census.gov/geo/tiger/TIGER2025/CD/tl_2025_{fips}_cd119.zip"
 STATE_URLS = [
     "https://www2.census.gov/geo/tiger/TIGER2025/STATE/tl_2025_us_state.zip",
     "https://www2.census.gov/geo/tiger/TIGER2024/STATE/tl_2024_us_state.zip",
@@ -43,29 +41,38 @@ STATE_FIPS = {
 }
 
 
-def _download_first_available(urls: list[str], raw_dir: Path = RAW_DIR) -> Path:
-    """Download the newest available file from `urls` into data/raw/,
-    skipping the download when a copy is already present."""
+def _download(url: str, raw_dir: Path = RAW_DIR) -> Path:
+    """Download one file into data/raw/, skipping when already present."""
     raw_dir.mkdir(parents=True, exist_ok=True)
-    for url in urls:
-        dest = raw_dir / url.rsplit("/", 1)[-1]
-        if dest.exists() and dest.stat().st_size > 0:
-            return dest
+    dest = raw_dir / url.rsplit("/", 1)[-1]
+    if dest.exists() and dest.stat().st_size > 0:
+        return dest
+    with requests.get(url, stream=True, timeout=(30, 300)) as resp:
+        resp.raise_for_status()
+        tmp = dest.with_suffix(".part")
+        with open(tmp, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=1 << 20):
+                f.write(chunk)
+        tmp.rename(dest)
+    return dest
+
+
+def _download_first_available(urls: list[str], raw_dir: Path = RAW_DIR) -> Path:
+    """Download the newest available file from `urls`."""
     last_error: Exception | None = None
     for url in urls:
-        dest = raw_dir / url.rsplit("/", 1)[-1]
         try:
-            with requests.get(url, stream=True, timeout=300) as resp:
-                resp.raise_for_status()
-                tmp = dest.with_suffix(".part")
-                with open(tmp, "wb") as f:
-                    for chunk in resp.iter_content(chunk_size=1 << 20):
-                        f.write(chunk)
-                tmp.rename(dest)
-            return dest
+            return _download(url, raw_dir)
         except Exception as e:  # try the next vintage
             last_error = e
     raise RuntimeError(f"could not download any of {urls}: {last_error}")
+
+
+def _download_cd_shapefiles(raw_dir: Path = RAW_DIR) -> list[Path]:
+    """Fetch the 50 per-state CD119 shapefiles (threaded; skip existing)."""
+    urls = [CD_URL_TEMPLATE.format(fips=fips) for fips in sorted(STATE_FIPS)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return list(pool.map(lambda u: _download(u, raw_dir), urls))
 
 
 def _round_coords(obj, ndigits: int = 5):
@@ -107,16 +114,19 @@ def _simplified(gdf, tolerance: float):
 
 def _load_districts():
     import geopandas as gpd
+    import pandas as pd
 
-    cd_zip = _download_first_available(CD_URLS)
-    gdf = gpd.read_file(cd_zip)
+    cd_zips = _download_cd_shapefiles()
+    gdf = gpd.GeoDataFrame(
+        pd.concat([gpd.read_file(z) for z in cd_zips], ignore_index=True)
+    )
     cd_col = next(c for c in gdf.columns if c.startswith("CD") and c.endswith("FP"))
     gdf = gdf[gdf["STATEFP"].isin(STATE_FIPS)]
     gdf = gdf[~gdf[cd_col].isin(["98", "99", "ZZ"])]  # undefined/water slots
     gdf = gdf.to_crs(4326)
     gdf["state"] = gdf["STATEFP"].map(STATE_FIPS)
     gdf["district_number"] = gdf[cd_col].map(lambda cd: 0 if cd == "00" else int(cd))
-    return gdf, cd_zip.name
+    return gdf, "TIGER2025 CD119 (per-state files)"
 
 
 def build_house_geojson(registry: Registry, out_path: Path,
@@ -151,7 +161,10 @@ def build_house_geojson(registry: Registry, out_path: Path,
 
     props = ["seat_id", "state", "district_number", "plan_id", "contest_id",
              "contest_kind", "geometry_may_be_superseded"]
-    for tolerance in (0.01, 0.02, 0.035, 0.05):
+    # Start high-fidelity (~200 m) and coarsen only if the budget demands it:
+    # districts split dense cities (e.g. OH-03/OH-15 through Columbus), so
+    # aggressive tolerances visibly misassign downtown points.
+    for tolerance in (0.002, 0.005, 0.01, 0.02, 0.05):
         fc = _to_feature_collection(_simplified(gdf, tolerance), props)
         fc["source"] = source_name
         fc["caveat"] = (
@@ -199,7 +212,7 @@ def build_states_geojson(registry: Registry, out_path: Path) -> dict:
     gdf["name"] = gdf["NAME"]
 
     fc = _to_feature_collection(
-        _simplified(gdf, 0.02),
+        _simplified(gdf, 0.01),
         ["state", "name", "senate_contest_ids", "senate_kind",
          "has_2026_senate_contest"],
     )

@@ -10,7 +10,10 @@ from shapely.geometry import Point, shape
 from pipeline.export import WEB_DATA_DIR
 
 MINNEAPOLIS = Point(-93.2650, 44.9778)   # downtown Minneapolis
-COLUMBUS = Point(-82.9988, 39.9612)      # downtown Columbus
+# East Broad St, Columbus. NB: the Statehouse block itself sits in OH-15
+# under the 119th-Congress map (verified against raw TIGER2025); OH-03
+# covers the rest of central Columbus.
+COLUMBUS = Point(-82.9700, 39.9650)
 
 
 def _load(name: str):
