@@ -3,8 +3,11 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "web"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd \"$HOME/Documents/2026_midterm_ontology/web\" && PATH=\"$HOME/anaconda3/envs/midterm-ontology-2026/bin:$PATH\" npm run dev"
+      ],
       "port": 3000
     }
   ]

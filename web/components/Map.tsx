@@ -48,11 +48,22 @@ export default function ContestMap({
     onPick(e.lngLat.lng, e.lngLat.lat);
   };
 
+  const handleLoad = (e: { target: import("maplibre-gl").Map }) => {
+    const ours = e.target
+      .getStyle()
+      .layers.map((l) => l.id)
+      .filter((id) => id.startsWith("senate-") || id.startsWith("house-"));
+    // eslint-disable-next-line no-console
+    console.log("[ontology-map] layers mounted:", ours.join(","));
+    (window as unknown as Record<string, unknown>).__mapLayers = ours;
+  };
+
   return (
     <Map
       initialViewState={{ longitude: -96.5, latitude: 38.5, zoom: 3.6 }}
       mapStyle="https://demotiles.maplibre.org/style.json"
       onClick={handleClick}
+      onLoad={handleLoad}
       cursor="crosshair"
       style={{ width: "100%", height: "100%" }}
     >
